@@ -1,0 +1,239 @@
+<html>
+<head>
+
+<!--
+########
+# TODO #
+########
+
+Ownerships of everything
+People are users
+
+Tasks in project
+Draw tasks
+Task duration
+Seq dep
+Project start date
+Scroll time
+Allocate people
+
+-->
+<script type="text/javascript">
+
+window.onload=onLoad;
+
+function doAjax(url, then) {
+  var a = new XMLHttpRequest() || new ActiveXObject("Microsoft.XMLHTTP");
+  a.onreadystatechange = function () {
+    if (a.readyState==4) {
+      console.log(a.responseText);
+      then(a.responseText);
+    }
+  }
+  a.open("GET",url,true);
+  a.send(null);
+}
+
+function ajaxget(url, dest)
+{
+  doAjax(url, function (resp) {
+    document.getElementById(dest).innerHTML=resp;
+  });
+}
+function ajaxgoto(url) { ajaxget(url, 'ajaxdiv'); }
+function onLoad() { 
+  ajaxgoto("help"); 
+}
+
+
+var downee;
+var topz=1;	
+var startmouse,startob;
+
+function mouseCoords(ev)
+{ 
+  if(ev.pageX || ev.pageY) { return [ev.pageX, ev.pageY]; } 
+  return [ 
+    ev.clientX + document.body.scrollLeft - document.body.clientLeft, 
+    ev.clientY + document.body.scrollTop  - document.body.clientTop 
+  ]; 
+}
+
+function mouseDown(ob,ev)
+{
+	startmouse = mouseCoords(ev);
+	console.log(JSON.stringify(startmouse));
+	startob=[parseInt(ob.getAttribute('x')||ob.getAttribute('left')), parseInt(ob.getAttribute('y')||ob.getAttribute('top'))];
+  downee = ob;
+  document.body.style.cursor = 'move';
+  downee.style.zIndex=topz++;
+  return false;
+}
+
+document.onmousemove=mouseMove;
+function mouseMove(ev)
+{
+  if (!downee) return true;
+	return false;
+  coords = mouseCoords(ev);
+	var x = startob[0]+coords[0]-startmouse[0];
+	var y = startob[1]+coords[1]-startmouse[1];
+	if (downee.hasAttribute('x'))
+		downee.setAttribute('x', x);
+	else if (downee.hasAttribute('left'))
+		downee.setAttribute('left', x);
+	if (downee.hasAttribute('y'))
+		downee.setAttribute('y', y);
+	else if (downee.hasAttribute('top'))
+		downee.setAttribute('top', x);
+  return false;
+}
+
+document.onmouseup=mouseUp;
+function mouseUp(ev)
+{	
+  if (!downee) return true;
+  var upee=ev.target; 
+  if (upee === downee) {
+    var id = upee.getAttribute('id');
+    console.log ('Clicked ' + id);
+    ajaxgoto("edit?name="+id);	
+  }
+  else {
+    console.log ('Dropped ' + downee.getAttribute('id') + ' on ' + upee.getAttribute('id'));
+    //alert ('Dropped ' + (downee.getAttribute('id')));
+    ajaxgoto("dropped?srcid="+downee.id+"&dstid="+upee.id);	
+  }
+  upee=downee=null;
+  return false;
+}
+
+function create(type, parent) {
+  var n = prompt("Please enter a name for the new "+type);
+  if (n!=null) {
+    ajaxgoto("new?type="+type+"&name="+n+(parent?"&parent="+parent:""));
+  }
+}
+
+function destroy(name) {
+  var c = confirm("Sure you want to delete "+name);
+  if (c==true) {
+    ajaxgoto("del?name="+name);
+  }
+}
+
+function toggleSkill(who, what) {
+  ajaxgoto("skilled?who="+who+"&what="+what);
+}
+
+/*
+var project1 = {
+  numdays:10, 
+	numtasks:2,		
+  tasks:{
+		openbox:[0,2,2,0], //start, duration, end, row
+		readmanual:[2,3,5,1],				
+	},
+  seqs:[
+	 ['openbox','readmanual']
+  ]
+}
+*/
+
+var layout= {
+	margin:0,
+	namewidth:150,
+	daywidth:10,
+	lineheight:20,
+	barheight:10,
+	bardown:10,
+	down:16,
+	spline:20,
+}
+
+function id(x) {return x;}
+
+function el(name,ats,body) {
+	var al="";
+	for (var a in ats) if (ats.hasOwnProperty(a)) 
+		al += " "+a+"='"+ats[a]+"'";
+	return "<"+name+al+">"+body+"</"+name+">";
+}
+
+function mapcon(f) {return function (ob) {
+	var res=[];
+	for (var k in ob) if (ob.hasOwnProperty(k)) res.push(f(k,ob[k]));
+	return res.join('');
+}}
+
+function drawgantt(project) {
+	var totwidth=2*layout.margin+layout.namewidth+project.numdays*layout.daywidth;
+	var totheight=2*layout.margin+project.numtasks*layout.lineheight;
+
+	var svg=el("svg", {
+							width:totwidth,
+							height:totheight,
+							viewbox:"0 0 "+totwidth+" "+totheight
+							}, el('line',{
+									stroke:'black',
+									x1:layout.margin+layout.namewidth,
+									x2:layout.margin+layout.namewidth,
+									y1:0,
+									y2:totheight
+								},'') + 
+							mapcon(function (t) {
+								var task = project.tasks[t];
+								return el("text", {
+									'id':t,
+									onmousedown:'return mouseDown(this,evt);',
+									x:layout.margin,
+									y:layout.margin+(task[3])*layout.lineheight+layout.down
+								}, t) + 
+								el("rect", {
+									fill:'blue',
+									x:layout.margin+layout.namewidth+layout.daywidth*task[0],
+									width:layout.daywidth*task[1],
+									y:layout.margin+layout.down+layout.bardown+(task[3]-1)*layout.lineheight,
+									height:layout.barheight
+								},'')
+							})(project.tasks) + 
+							mapcon(function (s) {
+								var seq=project.seqs[s], t1 = project.tasks[seq[0]], t2=project.tasks[seq[1]];
+								var sy=layout.margin+layout.down+layout.bardown+(t1[3]-1)*layout.lineheight+layout.barheight/2;  
+								var ey=layout.margin+layout.down+layout.bardown+(t2[3]-1)*layout.lineheight+layout.barheight/2;  
+								var sx=layout.margin+layout.namewidth+layout.daywidth*t1[0]+layout.daywidth*t1[1];
+								var ex=layout.margin+layout.namewidth+layout.daywidth*t2[0];
+								return el("path", {
+									d:"M"+sx+","+sy+" C"+(sx+layout.spline)+","+sy+" "+(ex-layout.spline)+","+ey+" "+ex+","+ey,
+									fill:'none',
+									stroke:'black'
+								}, '') 
+								})(project.seqs)
+							);
+
+	console.log(svg);
+  return svg;
+}
+
+</script>
+<style>
+	.candraganddrop {background-color:#888888; position:absolute; z-index:0; }	
+	.item {background-color:#888888; position:absolute; z-index:0; }	
+  td,th { text-align:center;}
+  table.nav,tr.nav { width='100%'}
+  table.nav td { background-color:yellow;}
+  .button { color:red;}
+  * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+</style>
+<body>
+  <div id="ajaxdiv">
+  </div>
+</html>
+

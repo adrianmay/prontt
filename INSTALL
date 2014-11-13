@@ -1,0 +1,30 @@
+INSTALLATION
+============
+
+First you need SWI prolog working. 
+I never tried this on Windows or Mac, 
+so if you know how to do that 
+please tell me and I'll edit these instructions.
+
+On linux, the packages and binary tarballs all seem broken. 
+You have to build from source.
+
+Clone the stable git repo, 
+DON'T do ./configure, rather, 
+copy build.tmpl to build and edit it to cut out xpce, 
+then run it. 
+After that, try make check (don't expect perfection) 
+and sudo make install. 
+
+If you get a prompt for swipl you're getting somewhere.
+
+If you cloned this repo and cd-ed there, 
+type make and point your browser at localhost:8888.
+
+If it doesn't work for any reason 
+(which would not be reason to doubt the laws of physics), 
+please file an issue at the github issue tracker.
+
+
+
+
