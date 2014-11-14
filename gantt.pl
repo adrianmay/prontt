@@ -79,7 +79,7 @@ help(H,Request):-
   p('Click people to edit them. Click a colour to set colour used in Gantt charts.'),
   p('Use Kickoff to make a new project. A link for the new project appears on the navbar.'),
   p('On the project tab make new tasks. Click a task to edit its properties (just duration for now). '),
-  p('Drag Task B onto Task A to say that A must be finished before A can start. Drag A onto B to delete that dependency.'),
+  p('Drag Task B onto Task A to say that A must be finished before B can start. Drag A onto B to delete that dependency.'),
   p('Drag a task onto a person to assign it or to nobody to unassign it.')
     ]).
 
