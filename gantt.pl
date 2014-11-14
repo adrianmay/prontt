@@ -21,6 +21,7 @@
 :- db_term(start(_,_)).
 :- db_term(end(_,_)).
 :- db_term(seq(_,_)).
+:- db_term(assigned(_,_)).
 
 main :-
 	db_attach('data.pldb',[sync(none)]),
@@ -69,7 +70,8 @@ navbar(H,Request) :-
     ProjLinks,
     [ td([onclick('create("project")')],'Kickoff') ]
   ], TDs),
-  H = table([class(nav)],[tr(TDs)]).
+  H_ = table([class(nav)],[tr(TDs)]),
+  H = div([h2('Prontt: the prolog project planner'),H_]).
 
 help(H,Request):-
   H=div([],[
@@ -77,7 +79,8 @@ help(H,Request):-
   p('Click people to edit them. Click a colour to set colour used in Gantt charts.'),
   p('Use Kickoff to make a new project. A link for the new project appears on the navbar.'),
   p('On the project tab make new tasks. Click a task to edit its properties (just duration for now). '),
-  p('Drag Task B onto Task A to say that A must be finished before A can start. Drag A onto B to delete that dependency.')
+  p('Drag Task B onto Task A to say that A must be finished before A can start. Drag A onto B to delete that dependency.'),
+  p('Drag a task onto a person to assign it or to nobody to unassign it.')
     ]).
 
 colours(C):- 
@@ -104,9 +107,9 @@ skilltable(H) :-
       level(P,S,L),C=td([onclick('toggleSkill("'+P+'","'+S+'")')],L)
       ;C=td([onclick('toggleSkill("'+P+'","'+S+'")')],'0')
     ), Ss, PRM),
-    (colour(P,PC);PC=black),
+    colouR(P,PC),
     append([
-      [th([style('color:'+PC),onclick('ajaxgoto("edit?name='+P+'")')],P)],
+      [th([class(left),style('color:'+PC),onclick('ajaxgoto("edit?name='+P+'")')],P)],
       PRM,
       [th([class('button'),onclick('destroy("'+P+'")')],'Del')]
     ],PR)
@@ -117,7 +120,7 @@ skilltable(H) :-
   ), Ss, Bh),
 
   append([
-    [th([class('button'),onclick='create("person")'],'New')],
+    [th([class('left button'),onclick='create("person")'],'New')],
     Bh,
     [th('')]
   ], Botrow),
@@ -136,7 +139,6 @@ new(Request) :-
 	( 
 		isa(I,_) ; 
 		db_assert(isa(I,T)),
-		db_assert(colour(I,black)),
     %db_assert(ownedby(I, User)),
     (atom(P),db_assert(parent(I,P));true)
 	),
@@ -191,45 +193,82 @@ edit(H,Request) :-
   edit_(I,H,Request).
 
 edit_(I, H, Request):-
+
   ( isa(I,person), 
-    (colour(I,PC);PC=black),
+    colouR(I,PC),
     colours(Cs), maplist(\C^S^(
       S=span([style('color:'+C),onclick('ajaxgoto("setcolour?name='+I+'&col='+C+'")')],C)
     ) ,Cs,Colshow),
     L1 = [p([
       span('This is comrade '),
       span([style('color:'+PC)],I)]),
-      div([class('button'),onclick('destroy("'+I+'")')],'Del')],
+      div([class('button'),onclick('destroy("'+I+'")')],'Delete Person')],
     append(Colshow, L1, L),
     H = div(L) 
   ); 
+
 	( isa(I,project), 
-
-
+    findall(X, isa(X,person), People),
+    maplist(\P^J^( 
+      colouR(P,C), 
+      J = tr(td([
+        id(P),
+        class(left),
+        style('color:'+C)
+      ],P))) , People, PL_),
+    append(PL_,[tr(td([
+      id('nobody'),
+      class(left)
+    ],'nobody'))],PL),
     L_bu = p([div([class('button'),onclick('create("task","'+I+'")')],'New Task'),
-      div([class('button'),onclick('destroy("'+I+'")')],'Del')]),
-
+      div([class('button'),onclick('destroy("'+I+'")')],'Delete Project')]),
     L_id = p([ span('This is project '), span(I)]), 
+    drawgantt(I,SVG),
 
+    Bulk = table(tr([ td([style('vertical-align:top;')],table([],PL)), td([style('vertical-align:top;')],SVG) ])),
+    append([ [L_id] , [Bulk], [L_bu] ],Hn),
+    H = div(Hn)
+
+  );
+
+	( isa(I,task), 
+    L_id = p([ span('This is task '), span(I)]), 
+    (duration(I,D);D=1),
+    THs = table([tr([
+      td('Duration:'),
+      td([onclick('ajaxgoto("nudgeduration?name='+I+'&change=less")')],'<'),
+      td(D),
+      td([onclick('ajaxgoto("nudgeduration?name='+I+'&change=more")')],'>')
+    ])]),
+    L_bu = p([
+      div([class('button'),onclick('destroy("'+I+'")')],'Delete Task')
+    ]),
+    append([ [L_id] , [THs] , [L_bu] ],Hn),
+    H = p(Hn)
+  );
+
+  H = p([span('Nothing called '),span(I)]).
+
+drawgantt(I,SVG) :-
 
     findall(X,(isa(X,task),parent(X,I)),Ts),
 
-    LayoutMargin = 0,
+    LayoutMargin = 2,
     LayoutNamewidth = 150,
     LayoutDaywidth = 10,
-    LayoutLineheight = 20,
+    LayoutLineheight = 23,
     LayoutBarheight = 10,
-    LayoutBardown = 10,
+    LayoutBardown = 13,
     LayoutDown = 16,
     LayoutSpline = 20,
+    LayoutTextback = 4,
 
     length(Ts, NumTasks),
-
     foldl(\T^O^M^(end(T,TE),(TE>O,M=TE;M=O)), Ts, 0, End),
-
     GanttWidth is 2*LayoutMargin + LayoutNamewidth + LayoutDaywidth*End,
     GanttHeight is 2*LayoutMargin + LayoutLineheight*NumTasks,
     XZ is LayoutMargin+LayoutNamewidth,
+    TR is XZ-LayoutTextback,
     
     SvgLine = [line([ stroke('black'),
       x1(XZ),
@@ -240,10 +279,13 @@ edit_(I, H, Request):-
 
     maplist(\T^S^(
       nth0(Row,Ts,T),
+      colouR(T,C),
       Y is LayoutMargin+Row*LayoutLineheight+LayoutDown,
       S = text([
+        fill(C),
         id(T),
-        x(LayoutMargin),
+        x(TR),
+        'text-anchor'(end),
         y(Y),
         class('tasklabel'),
         onmousedown('return mouseDown(this,evt);')
@@ -256,8 +298,9 @@ edit_(I, H, Request):-
       X is LayoutMargin+LayoutNamewidth+LayoutDaywidth*Start,
       Y is LayoutMargin+(Row-1)*LayoutLineheight+LayoutDown+LayoutBardown,
       W is LayoutDaywidth*Dur,
+      colouR(T,C),
       S = rect([
-        fill('blue'),
+        fill(C),
         x(X),
         width(W),
         y(Y),
@@ -287,44 +330,7 @@ edit_(I, H, Request):-
     SVG = svg([width(GanttWidth), 
                height(GanttHeight), 
                viewbox('0 0 '+GanttWidth+' '+GanttHeight)],
-               SvgAll),
-
-/*
-    maplist(\T^R^(
-      (duration(T,D);D=1),
-      (start(T,S);true),
-      (end(T,E);true),
-      R=tr([td(
-        [ width('20%') 
-        ],div([
-          id(T), 
-          class(candraganddrop), 
-          onmousedown('return mouseDown(this, event);'),
-          onclick('ajaxgoto("edit?name='+T+'")')
-        ],T)),td(S),td(D),td(E)])
-    ),Ts,TRs),
-    append([tr([th('Task'), th('Start'), th('Duration'), th('End')])], TRs, TRHs),
-*/
-    %append([ [L_id] , [table([width('100%')],TRHs)] , [SVG] , [L_bu] ],Hn),
-    append([ [L_id] , [SVG] , [L_bu] ],Hn),
-    H = div(Hn)
-  );
-	( isa(I,task), 
-    L_id = p([ span('This is task '), span(I)]), 
-    (duration(I,D);D=1),
-    THs = table([tr([
-      td('Duration:'),
-      td([onclick('ajaxgoto("nudgeduration?name='+I+'&change=less")')],'<'),
-      td(D),
-      td([onclick('ajaxgoto("nudgeduration?name='+I+'&change=more")')],'>')
-    ])]),
-    L_bu = p([
-      div([class('button'),onclick('destroy("'+I+'")')],'Del')
-    ]),
-    append([ [L_id] , [THs] , [L_bu] ],Hn),
-    H = p(Hn)
-  );
-  H = p([span('Nothing called '),span(I)]).
+               SvgAll).
 
 
 dropped(Request) :-
@@ -335,19 +341,30 @@ dropped(Request) :-
   ]),
   ( 
     (
-      isa(DI,task),
-      isa(SI,task),
+      isa(SI,task), isa(DI,task),
       % means source after dest, i.e. seq(DI,SI)
       ( DI=SI;
         seq(DI,SI); 
         seq(SI,DI), db_retractall(seq(SI,DI)) ;
         seq_somehow(SI,DI); %dont make circular
         db_assert(seq(DI,SI)) ),
-      (parent(DI,P);P=people)  
+      (parent(DI,P);P=people),
+      ajaxreply(edit_(P),Request)
+    );
+    (
+      isa(SI,task), isa(DI,person),
+      db_retractall(assigned(SI,_)),
+      db_assert(assigned(SI,DI)),
+      parent(SI,Pro),
+      ajaxreply(edit_(Pro),Request)
+    );
+    (
+      isa(SI,task), DI='nobody',
+      db_retractall(assigned(SI,_)),
+      parent(SI,Pro),
+      ajaxreply(edit_(Pro),Request)
     )
-  ;true),
-	ajaxreply(edit_(P),Request).
-
+  ;true).
 
 skilled(Request) :-
   %auth(Request, _User),
@@ -365,6 +382,11 @@ skilled(Request) :-
 
 %Finally, the logic...
 
+colouR(I,C):- 
+  ( isa(I,person),P=I ; isa(I,task),assigned(I,P) ),
+  colour(P,C)
+  ;C=black.
+
 worstcase(D) :-
   findall(T, isa(T,task), Ts),
   maplist(\T^D^(duration(T,D)), Ts, Ds),
@@ -375,20 +397,18 @@ seq_somehow(A,Z):-
   seq(Y,Z),
   seq_somehow(A,Y).
 
-start(T,0):-
-  not(seq(_,T)).
-
 start(T,S):-
   worstcase(W),
+  S in 0..W,
   findall(X,seq_somehow(X,T), Ps),
   maplist(\P^E^(end(P,E)),Ps,Es),
-  max_list(Es,SM),
+  (max_list(Es,SM);SM=0),
   S #> SM,
-  S in 0..W,
   once(labeling([min(S)],[S])).
 
 end(T,E):-
   start(T,S),
   duration(T,D),
   E is S+D.
+
 
