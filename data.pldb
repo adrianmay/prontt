@@ -145,3 +145,4 @@ retractall(duration(bar,_)).
 assert(duration(bar,4)).
 retractall(duration(bar,_)).
 assert(duration(bar,5)).
+assert(seq(foo,zed)).

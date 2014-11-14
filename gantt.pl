@@ -4,12 +4,15 @@
 :- use_module(library('http/http_dispatch')).
 :- use_module(library('http/http_parameters')).
 :- use_module(library('http/http_header')).
+:- use_module(library(clpfd)).
 :- use_module(library('clpfd')).
 :- use_module(library('lists')).
 :- use_module('lambda').
 :- use_module(library('apply')).
 :- use_module('db.pl').
  
+:- set_prolog_flag(clpfd_monotonic, false). 
+
 :- db_term(isa(_,_)).
 :- db_term(colour(_,_)).
 :- db_term(parent(_,_)).
@@ -39,7 +42,8 @@ main :-
 auth(Request, User) :- 
 	(   http_authenticate(basic('passwd'), Request, [User|_])
 	->  true
-	;   throw(http_reply(authorise(basic, 'Log in as ad or al with password same as username')))
+	;   throw(http_reply(authorise(basic, 
+        'Log in as ad or al with password same as username')))
 	).
 
 root(Request) :-
@@ -56,7 +60,9 @@ ajaxreply(Builder, Request):-
 navbar(H,Request) :-
   %	auth(Request, _User),
   findall(X, isa(X,project), Pros),
-  maplist(\P^L^(L=td([onclick('ajaxgoto("edit?name='+P+'");')],P)) ,Pros ,ProjLinks),
+  maplist(\P^L^(
+    L=td([onclick('ajaxgoto("edit?name='+P+'");')],P)
+  ) ,Pros ,ProjLinks),
   append([
     [ td([onclick('ajaxgoto("help")')],'Help'), 
       td([onclick('ajaxgoto("people")')],'People') ],
@@ -87,7 +93,11 @@ skilltable(H) :-
   findall(X, isa(X,person), Ps),
 
   maplist(\X^Y^(Y=th(X)), Ss, Sh),
-  append([[th('')],Sh,[th([class('button'),onclick='create("skill")'],'New')]], Toprow),
+  append([
+    [th('')],
+    Sh,
+    [th([class('button'),onclick='create("skill")'],'New')]
+  ], Toprow),
 
   maplist( Ss+\P^PR^(
     maplist( P+\S^C^(
@@ -95,11 +105,22 @@ skilltable(H) :-
       ;C=td([onclick('toggleSkill("'+P+'","'+S+'")')],'0')
     ), Ss, PRM),
     (colour(P,PC);PC=black),
-    append([[th([style('color:'+PC),onclick('ajaxgoto("edit?name='+P+'")')],P)],PRM,[th([class('button'),onclick('destroy("'+P+'")')],'Del')]],PR)
+    append([
+      [th([style('color:'+PC),onclick('ajaxgoto("edit?name='+P+'")')],P)],
+      PRM,
+      [th([class('button'),onclick('destroy("'+P+'")')],'Del')]
+    ],PR)
   ) , Ps, PRs),
 
-  maplist(\S^Y^(Y=th([class('button'),onclick('destroy("'+S+'")')],'Del')), Ss, Bh),
-  append([[th([class('button'),onclick='create("person")'],'New')],Bh,[th('')]], Botrow),
+  maplist(\S^Y^(
+    Y=th([class('button'),onclick('destroy("'+S+'")')],'Del')
+  ), Ss, Bh),
+
+  append([
+    [th([class('button'),onclick='create("person")'],'New')],
+    Bh,
+    [th('')]
+  ], Botrow),
 
   append([[Toprow],PRs,[Botrow]], Rows),
   maplist(\R^B^(B=tr(R)),Rows,Body),
@@ -172,7 +193,9 @@ edit(H,Request) :-
 edit_(I, H, Request):-
   ( isa(I,person), 
     (colour(I,PC);PC=black),
-    colours(Cs), maplist(\C^S^(S=span([style('color:'+C),onclick('ajaxgoto("setcolour?name='+I+'&col='+C+'")')],C)),Cs,Colshow),
+    colours(Cs), maplist(\C^S^(
+      S=span([style('color:'+C),onclick('ajaxgoto("setcolour?name='+I+'&col='+C+'")')],C)
+    ) ,Cs,Colshow),
     L1 = [p([
       span('This is comrade '),
       span([style('color:'+PC)],I)]),
@@ -222,6 +245,7 @@ edit_(I, H, Request):-
         id(T),
         x(LayoutMargin),
         y(Y),
+        class('tasklabel'),
         onmousedown('return mouseDown(this,evt);')
       ],T)), Ts, SvgLabels),
 
@@ -264,7 +288,6 @@ edit_(I, H, Request):-
                height(GanttHeight), 
                viewbox('0 0 '+GanttWidth+' '+GanttHeight)],
                SvgAll),
-
 
 /*
     maplist(\T^R^(
@@ -342,6 +365,11 @@ skilled(Request) :-
 
 %Finally, the logic...
 
+worstcase(D) :-
+  findall(T, isa(T,task), Ts),
+  maplist(\T^D^(duration(T,D)), Ts, Ds),
+  sumlist(Ds,D).
+
 seq_somehow(A,Z):-
   seq(A,Z);
   seq(Y,Z),
@@ -351,9 +379,13 @@ start(T,0):-
   not(seq(_,T)).
 
 start(T,S):-
+  worstcase(W),
   findall(X,seq_somehow(X,T), Ps),
   maplist(\P^E^(end(P,E)),Ps,Es),
-  max_list(Es,S).
+  max_list(Es,SM),
+  S #> SM,
+  S in 0..W,
+  once(labeling([min(S)],[S])).
 
 end(T,E):-
   start(T,S),
