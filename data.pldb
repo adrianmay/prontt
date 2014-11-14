@@ -214,3 +214,22 @@ retractall(seq(foo,zed)).
 assert(isa('englebert humperdink',person)).
 retractall(colour('englebert humperdink',_)).
 assert(colour('englebert humperdink',darkmagenta)).
+assert(isa(nit,task)).
+assert(parent(nit,rhaboo)).
+assert(duration(nit,1)).
+assert(isa(mew,task)).
+assert(parent(mew,rhaboo)).
+assert(duration(mew,1)).
+retractall(assigned(mew,_)).
+assert(assigned(mew,'englebert humperdink')).
+retractall(assigned(nit,_)).
+assert(assigned(nit,greg)).
+retractall(assigned(bar,_)).
+assert(assigned(bar,jack)).
+assert(seq(zed,nit)).
+assert(seq(bar,nit)).
+assert(seq(nit,mew)).
+retractall(duration(mew,_)).
+assert(duration(mew,2)).
+retractall(duration(mew,_)).
+assert(duration(mew,3)).

@@ -140,7 +140,8 @@ new(Request) :-
 		isa(I,_) ; 
 		db_assert(isa(I,T)),
     %db_assert(ownedby(I, User)),
-    (atom(P),db_assert(parent(I,P));true)
+    (atom(P),db_assert(parent(I,P));true),
+    (T=task,db_assert(duration(I,1));true)
 	),
   ((T=skill),Whereto=people; Whereto=edit_(I)),
 	ajaxreply(Whereto,Request).
@@ -308,7 +309,6 @@ drawgantt(I,SVG) :-
       ],'')), Ts, SvgBars),
 
     findall([S1,S2],(parent(S2,I),parent(S1,I),seq(S1,S2)), Seqs),
-
     maplist(\[T1,T2]^Spline^(
       nth0(Row1,Ts,T1),
       nth0(Row2,Ts,T2),
@@ -403,7 +403,7 @@ start(T,S):-
   findall(X,seq_somehow(X,T), Ps),
   maplist(\P^E^(end(P,E)),Ps,Es),
   (max_list(Es,SM);SM=0),
-  S #> SM,
+  S #>= SM,
   once(labeling([min(S)],[S])).
 
 end(T,E):-
