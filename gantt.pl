@@ -4,15 +4,12 @@
 :- use_module(library('http/http_dispatch')).
 :- use_module(library('http/http_parameters')).
 :- use_module(library('http/http_header')).
-:- use_module(library(clpfd)).
 :- use_module(library('clpfd')).
 :- use_module(library('lists')).
 :- use_module('lambda').
 :- use_module(library('apply')).
 :- use_module('db.pl').
  
-:- set_prolog_flag(clpfd_monotonic, false). 
-
 :- db_term(isa(_,_)).
 :- db_term(colour(_,_)).
 :- db_term(parent(_,_)).
@@ -85,7 +82,7 @@ help(H,Request):-
 
 colours(C):- 
   C=[crimson,green,blue,saddlebrown,darkorange,
-     darkmagenta,deeppink,teal,grey,coral,black].
+     darkmagenta,deeppink,teal,grey,coral].
 
 people(H,Request) :-
   %auth(Request, User),
@@ -141,7 +138,8 @@ new(Request) :-
 		db_assert(isa(I,T)),
     %db_assert(ownedby(I, User)),
     (atom(P),db_assert(parent(I,P));true),
-    (T=task,db_assert(duration(I,1));true)
+    (T=task,db_assert(duration(I,1));true),
+    (T=person,db_assert(colour(I,grey));true)
 	),
   ((T=skill),Whereto=people; Whereto=edit_(I)),
 	ajaxreply(Whereto,Request).
@@ -398,6 +396,9 @@ seq_somehow(A,Z):-
   seq_somehow(A,Y).
 
 start(T,S):-
+  schedule(Sched),
+  lookup(Sched, T, S).
+  /*
   worstcase(W),
   S in 0..W,
   findall(X,seq_somehow(X,T), Ps),
@@ -405,10 +406,47 @@ start(T,S):-
   (max_list(Es,SM);SM=0),
   S #>= SM,
   once(labeling([min(S)],[S])).
+*/
 
 end(T,E):-
   start(T,S),
   duration(T,D),
   E is S+D.
+
+% Surely this is bult in...
+zip([], [], []).
+zip([X|Xs], [Y|Ys], [[X,Y]|Zs]) :- zip(Xs,Ys,Zs).
+
+schedule(Schedule) :-
+  findall(T, isa(T,task), Tasks),
+  maplist(\T^D^(duration(T,D)), Tasks, Ds),
+  sumlist(Ds,WorstCase),
+  length(Tasks, NumTasks),
+  length(Starts, NumTasks),
+  Starts ins 0..WorstCase,
+  zip(Tasks, Starts, Schedule),
+  findall([Pre, Post], seq_somehow(Pre, Post), PPs),
+  maplist(inorder(Schedule),PPs),
+  once(label(Schedule)).
+
+inorder(Schedule,[Pre, Post]):-
+  duration(Pre, PreDur),
+  lookup(Schedule, Post, PostStart),
+  lookup(Schedule, Post, PostStart),
+  PostStart #>= PreStart + PreDur.
+
+lookup(Schedule, Task, TaskStart) :-
+  length(Schedule, L),
+  I in 0..L,
+  element(I,Schedule, Entry),
+  Entry #= [Task, TaskStart].
+
+/*
+  forall(isa(P,person), (
+    findall(T, assigned(T,P), HisTasks),
+    maplist(\T^X^(duration(T,X)), Ts, Durations)
+    serialized(Starts, Durations)
+  )).
+*/
 
 

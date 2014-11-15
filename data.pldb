@@ -233,3 +233,29 @@ retractall(duration(mew,_)).
 assert(duration(mew,2)).
 retractall(duration(mew,_)).
 assert(duration(mew,3)).
+assert(isa(alice,person)).
+assert(colour(alice,grey)).
+retractall(colour(alice,_)).
+assert(colour(alice,coral)).
+retractall(level(alice,cpp,_)).
+assert(level(alice,cpp,1)).
+retractall(level(alice,cpp,_)).
+assert(level(alice,cpp,2)).
+retractall(level(alice,cpp,_)).
+assert(level(alice,cpp,3)).
+retractall(level(greg,java,_)).
+assert(level(greg,java,1)).
+retractall(level('englebert humperdink',java,_)).
+assert(level('englebert humperdink',java,1)).
+retractall(level(greg,java,_)).
+assert(level(greg,java,2)).
+retractall(level(greg,cpp,_)).
+assert(level(greg,cpp,1)).
+retractall(level(greg,cpp,_)).
+assert(level(greg,cpp,2)).
+retractall(level(greg,cpp,_)).
+assert(level(greg,cpp,3)).
+assert(seq(enter,eva)).
+assert(seq(enter,elbow)).
+retractall(seq(enter,elbow)).
+retractall(seq(enter,eva)).
