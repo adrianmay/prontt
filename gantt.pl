@@ -154,7 +154,9 @@ del(Request) :-
 		db_retractall(parent(I,_)), 
 		db_retractall(colour(I,_)),
 		db_retractall(level(I,_,_)),
-		db_retractall(level(_,I,_))
+		db_retractall(level(_,I,_)),
+		db_retractall(seq(I,_)), 
+		db_retractall(seq(_,I))
 		; true
 	),
 	ajaxreply(Whereto,Request).
@@ -398,15 +400,6 @@ seq_somehow(A,Z):-
 start(T,S):-
   schedule(Sched),
   lookup(Sched, T, S).
-  /*
-  worstcase(W),
-  S in 0..W,
-  findall(X,seq_somehow(X,T), Ps),
-  maplist(\P^E^(end(P,E)),Ps,Es),
-  (max_list(Es,SM);SM=0),
-  S #>= SM,
-  once(labeling([min(S)],[S])).
-*/
 
 end(T,E):-
   start(T,S),
@@ -424,22 +417,24 @@ schedule(Schedule) :-
   length(Tasks, NumTasks),
   length(Starts, NumTasks),
   Starts ins 0..WorstCase,
+  %Schedule=[[foo,1], [bar,2], [eva,3]].
   zip(Tasks, Starts, Schedule),
-  findall([Pre, Post], seq_somehow(Pre, Post), PPs),
+  findall([Pre,Post], seq_somehow(Pre, Post), PPs),
+  %write(PPs),
+  %PPs = [[foo,bar]],
   maplist(inorder(Schedule),PPs),
-  once(label(Schedule)).
+  once(label(Starts)).
 
 inorder(Schedule,[Pre, Post]):-
   duration(Pre, PreDur),
-  lookup(Schedule, Post, PostStart),
+  lookup(Schedule, Pre, PreStart),
   lookup(Schedule, Post, PostStart),
   PostStart #>= PreStart + PreDur.
 
-lookup(Schedule, Task, TaskStart) :-
-  length(Schedule, L),
-  I in 0..L,
-  element(I,Schedule, Entry),
-  Entry #= [Task, TaskStart].
+%lookup([],_,0).
+lookup([[Task, TaskStart]|Es], Task, TaskStart). 
+lookup([_|Es], Task, TaskStart) :-  
+  lookup(Es, Task, TaskStart).
 
 /*
   forall(isa(P,person), (
