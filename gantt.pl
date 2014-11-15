@@ -72,13 +72,27 @@ navbar(H,Request) :-
 
 help(H,Request):-
   H=div([],[
+  p('This is a project planner based on constraint logic programming. That means it arranges tasks according to rules and optimisation criteria.'),
   p('Create people and skills on People tab. Click body of table to edit peoples\' skill ratings.'),
   p('Click people to edit them. Click a colour to set colour used in Gantt charts.'),
   p('Use Kickoff to make a new project. A link for the new project appears on the navbar.'),
   p('On the project tab make new tasks. Click a task to edit its properties (just duration for now). '),
   p('Drag Task B onto Task A to say that A must be finished before B can start. Drag A onto B to delete that dependency.'),
-  p('Drag a task onto a person to assign it or to nobody to unassign it.')
-    ]).
+  p('Drag a task onto a person to assign it or to nobody to unassign it.'),
+  p('Notice how sequential dependencies are observed and nobody gets double booked, even between different projects.'),
+  p('For now, optimisation just means minimising the final end date of all tasks.'),
+  p('Future features will include:'),
+  ul([
+    li('Associating multiple skills with tasks'),
+    li('Finding people with relevant skills'),
+    li('Expecting experts to complete tasks quicker than novices'),
+    li('Expecting time to be lost when somebody changes task'),
+    li('Prioritising projects for optimisation, e.g. minimise total lateness of all projects.'),
+    li('Poaching people from other projects'),
+    li('User login and roles of resource, PM of a given project and global admin'),
+    li('Cosmetics')
+    ])
+  ]).
 
 colours(C):- 
   C=[crimson,green,blue,saddlebrown,darkorange,
@@ -397,33 +411,46 @@ seq_somehow(A,Z):-
   seq(Y,Z),
   seq_somehow(A,Y).
 
-start(T,S):-
-  schedule(Sched),
-  lookup(Sched, T, S).
-
 end(T,E):-
   start(T,S),
   duration(T,D),
   E is S+D.
 
+start(T,S):-
+  schedule(Sched),
+  lookup(Sched, T, S).
+
 % Surely this is bult in...
 zip([], [], []).
 zip([X|Xs], [Y|Ys], [[X,Y]|Zs]) :- zip(Xs,Ys,Zs).
 
+zip3([], [], [], []).
+zip3([W|Ws], [X|Xs], [Y|Ys], [[W,X,Y]|Zs]) :- zip3(Ws,Xs,Ys,Zs).
+
 schedule(Schedule) :-
   findall(T, isa(T,task), Tasks),
-  maplist(\T^D^(duration(T,D)), Tasks, Ds),
-  sumlist(Ds,WorstCase),
   length(Tasks, NumTasks),
   length(Starts, NumTasks),
+  maplist(duration, Tasks, Ds), 
+  sumlist(Ds,WorstCase),
   Starts ins 0..WorstCase,
-  %Schedule=[[foo,1], [bar,2], [eva,3]].
   zip(Tasks, Starts, Schedule),
+
   findall([Pre,Post], seq_somehow(Pre, Post), PPs),
-  %write(PPs),
-  %PPs = [[foo,bar]],
   maplist(inorder(Schedule),PPs),
-  once(label(Starts)).
+
+  findall(Per, isa(Per,person), People),
+  maplist(nodoublebookings(Schedule),People),
+  
+  length(Ends, NumTasks),
+  Ends ins 0..WorstCase,
+  ends(Schedule, Ends),
+  GO in 0..WorstCase,
+  maplist(GO+\E^(GO#>=E), Ends),
+
+  append([[GO],Starts,Ends],ToSolve),
+  once(labeling([min(GO)],ToSolve)).
+
 
 inorder(Schedule,[Pre, Post]):-
   duration(Pre, PreDur),
@@ -431,17 +458,21 @@ inorder(Schedule,[Pre, Post]):-
   lookup(Schedule, Post, PostStart),
   PostStart #>= PreStart + PreDur.
 
-%lookup([],_,0).
+nodoublebookings(Schedule, Per):-
+  include(\[T,S]^(assigned(T,Per)), Schedule, HisSchedule),
+  maplist(\[T,S]^S^true, HisSchedule, Sts),
+  maplist(\[T,S]^D^(duration(T,D)), HisSchedule, Dus),
+  serialized(Sts, Dus).
+
+ends(Schedule, Ends):-
+  maplist(\[T,S]^S^true, Schedule, Sts),
+  maplist(\[T,S]^D^(duration(T,D)), Schedule, Dus),
+  zip3(Sts, Dus, Ends, Threes),
+  maplist(\[S,D,E]^(E#=S+D), Threes).
+
+lookup([],_,0).
 lookup([[Task, TaskStart]|Es], Task, TaskStart). 
 lookup([_|Es], Task, TaskStart) :-  
   lookup(Es, Task, TaskStart).
-
-/*
-  forall(isa(P,person), (
-    findall(T, assigned(T,P), HisTasks),
-    maplist(\T^X^(duration(T,X)), Ts, Durations)
-    serialized(Starts, Durations)
-  )).
-*/
 
 
